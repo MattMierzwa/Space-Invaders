@@ -1,15 +1,4 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <title>Hello, World!</title>
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-      <h1 class="title">Hello World! </h1>
-      <p id="currentTime"></p>
-      <script src="script.js"></script>
-  </body>
-</html><!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -136,26 +125,6 @@
             font-size: 16px;
             text-shadow: 0 0 10px #0ff;
         }
-
-        .powerup {
-            position: absolute;
-            animation: float 2s infinite ease-in-out;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-
-        .explosion {
-            position: absolute;
-            pointer-events: none;
-        }
-
-        @keyframes explode {
-            0% { transform: scale(0.5); opacity: 1; }
-            100% { transform: scale(2); opacity: 0; }
-        }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
 </head>
@@ -193,14 +162,17 @@
     </div>
 
     <script>
-        // Configurações do jogo
+        // Configurações do jogo - CORRIGIDAS
         const config = {
             playerSpeed: 6,
             bulletSpeed: 10,
             enemySpeed: 2,
-            enemySpawnRate: 60,
-            powerUpSpawnRate: 300,
-            starCount: 100
+            enemySpawnRate: 180,  // Reduzido para spawn mais lento
+            powerUpSpawnRate: 400,
+            starCount: 100,
+            enemySpawnTimer: 0,
+            maxEnemies: 6,        // Máximo de inimigos na tela
+            initialEnemySpeed: 2  // Velocidade inicial
         };
 
         // Elementos do DOM
@@ -230,7 +202,7 @@
             keys: {}
         };
 
-        // Sons do jogo (usando Web Audio API)
+        // Sons do jogo
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         
         function playLaserSound() {
@@ -281,9 +253,9 @@
             oscillator.connect(gainNode);
             gainNode.connect(audioContext.destination);
             
-            oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // C5
-            oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.1); // E5
-            oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime + 0.2); // G5
+            oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime);
+            oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.1);
+            oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime + 0.2);
             
             gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
             gainNode.gain.setValueAtTime(0.3, audioContext.currentTime + 0.1);
@@ -391,6 +363,10 @@
             player.x = canvas.width / 2 - 25;
             player.y = canvas.height - 80;
             
+            // Reset das configurações de dificuldade
+            config.enemySpawnRate = 180;
+            config.enemySpeed = config.initialEnemySpeed;
+            
             updateUI();
         }
 
@@ -426,30 +402,34 @@
 
         function spawnEnemy() {
             const size = Math.random() * 30 + 20;
+            const speed = Math.random() * 1 + config.enemySpeed;
+            
             gameState.enemies.push({
                 x: Math.random() * (canvas.width - size),
                 y: -size,
                 width: size,
                 height: size,
-                speed: Math.random() * 2 + config.enemySpeed,
-                color: `hsl(${Math.random() * 60 + 0}, 100%, 50%)`, // Tons de vermelho/laranja
+                speed: speed,
+                color: `hsl(${Math.random() * 60 + 0}, 100%, 50%)`,
                 health: Math.ceil(size / 20)
             });
         }
 
         function spawnPowerUp() {
-            const types = ['life', 'rapidFire', 'shield'];
-            const type = types[Math.floor(Math.random() * types.length)];
-            
-            gameState.powerUps.push({
-                x: Math.random() * (canvas.width - 30),
-                y: -30,
-                width: 30,
-                height: 30,
-                speed: 2,
-                type: type,
-                color: type === 'life' ? '#f00' : type === 'rapidFire' ? '#ff0' : '#0ff'
-            });
+            if (Math.random() < 0.3 && gameState.powerUps.length < 2) { // Limite de power-ups
+                const types = ['life', 'rapidFire', 'shield'];
+                const type = types[Math.floor(Math.random() * types.length)];
+                
+                gameState.powerUps.push({
+                    x: Math.random() * (canvas.width - 30),
+                    y: -30,
+                    width: 30,
+                    height: 30,
+                    speed: 2,
+                    type: type,
+                    color: type === 'life' ? '#f00' : type === 'rapidFire' ? '#ff0' : '#0ff'
+                });
+            }
         }
 
         function createExplosion(x, y, color = '#ff0') {
@@ -466,7 +446,7 @@
             }
         }
 
-        // Loop principal do jogo
+        // Loop principal do jogo - CORRIGIDO
         function gameLoop() {
             if (!gameState.isRunning || gameState.isPaused) {
                 requestAnimationFrame(gameLoop);
@@ -487,7 +467,7 @@
                 player.x = Math.min(canvas.width - player.width, player.x + player.speed);
             }
 
-            // Atualizar estrelas (fundo animado)
+            // Atualizar estrelas
             gameState.stars.forEach(star => {
                 star.y += star.speed;
                 if (star.y > canvas.height) {
@@ -496,28 +476,32 @@
                 }
             });
 
-            // Spawn de inimigos
-            if (Math.random() < config.enemySpawnRate / 60) {
+            // SPAWN DE INIMIGOS CORRIGIDO - muito mais balanceado
+            config.enemySpawnTimer++;
+            if (config.enemySpawnTimer >= config.enemySpawnRate && 
+                gameState.enemies.length < config.maxEnemies) {
                 spawnEnemy();
+                config.enemySpawnTimer = 0;
             }
 
-            // Spawn de power-ups
-            if (Math.random() < config.powerUpSpawnRate / 60) {
+            // Spawn de power-ups (mais raro)
+            if (Math.random() < 0.005) { // Reduzido de 0.01 para 0.005
                 spawnPowerUp();
             }
 
             // Atualizar balas
-            gameState.bullets.forEach((bullet, bulletIndex) => {
+            for (let i = gameState.bullets.length - 1; i >= 0; i--) {
+                const bullet = gameState.bullets[i];
                 bullet.y -= bullet.speed;
                 
-                // Remover balas que saíram da tela
                 if (bullet.y + bullet.height < 0) {
-                    gameState.bullets.splice(bulletIndex, 1);
+                    gameState.bullets.splice(i, 1);
                 }
-            });
+            }
 
             // Atualizar inimigos
-            gameState.enemies.forEach((enemy, enemyIndex) => {
+            for (let i = gameState.enemies.length - 1; i >= 0; i--) {
+                const enemy = gameState.enemies[i];
                 enemy.y += enemy.speed;
                 
                 // Colisão com player
@@ -526,16 +510,17 @@
                     updateUI();
                     createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, '#f00');
                     playExplosionSound();
-                    gameState.enemies.splice(enemyIndex, 1);
+                    gameState.enemies.splice(i, 1);
                     
                     if (gameState.lives <= 0) {
                         gameOver();
                     }
-                    return;
+                    continue;
                 }
                 
                 // Colisão com balas
-                gameState.bullets.forEach((bullet, bulletIndex) => {
+                for (let j = gameState.bullets.length - 1; j >= 0; j--) {
+                    const bullet = gameState.bullets[j];
                     if (detectCollision(bullet, enemy)) {
                         enemy.health--;
                         
@@ -544,57 +529,60 @@
                             updateUI();
                             createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
                             playExplosionSound();
-                            gameState.enemies.splice(enemyIndex, 1);
+                            gameState.enemies.splice(i, 1);
                             
-                            // Chance de dropar power-up
-                            if (Math.random() < 0.1) {
+                            // Chance de dropar power-up (15%)
+                            if (Math.random() < 0.15) {
                                 spawnPowerUp();
                             }
                         }
                         
-                        gameState.bullets.splice(bulletIndex, 1);
+                        gameState.bullets.splice(j, 1);
+                        break;
                     }
-                });
-                
-                // Remover inimigos que saíram da tela
-                if (enemy.y > canvas.height) {
-                    gameState.enemies.splice(enemyIndex, 1);
                 }
-            });
+                
+                if (enemy.y > canvas.height) {
+                    gameState.enemies.splice(i, 1);
+                }
+            }
 
             // Atualizar power-ups
-            gameState.powerUps.forEach((powerUp, powerUpIndex) => {
+            for (let i = gameState.powerUps.length - 1; i >= 0; i--) {
+                const powerUp = gameState.powerUps[i];
                 powerUp.y += powerUp.speed;
                 
-                // Colisão com player
                 if (detectCollision(player, powerUp)) {
                     applyPowerUp(powerUp.type);
                     playPowerUpSound();
-                    gameState.powerUps.splice(powerUpIndex, 1);
+                    gameState.powerUps.splice(i, 1);
+                } else if (powerUp.y > canvas.height) {
+                    gameState.powerUps.splice(i, 1);
                 }
-                
-                // Remover power-ups que saíram da tela
-                if (powerUp.y > canvas.height) {
-                    gameState.powerUps.splice(powerUpIndex, 1);
-                }
-            });
+            }
 
             // Atualizar partículas
-            gameState.particles.forEach((particle, particleIndex) => {
+            for (let i = gameState.particles.length - 1; i >= 0; i--) {
+                const particle = gameState.particles[i];
                 particle.x += particle.speedX;
                 particle.y += particle.speedY;
                 particle.life--;
                 
                 if (particle.life <= 0) {
-                    gameState.particles.splice(particleIndex, 1);
+                    gameState.particles.splice(i, 1);
                 }
-            });
+            }
 
-            // Aumentar nível
+            // Aumentar nível gradualmente
             if (gameState.score >= gameState.level * 1000) {
                 gameState.level++;
-                config.enemySpeed += 0.5;
-                config.enemySpawnRate += 5;
+                
+                // Aumento gradual de dificuldade
+                if (config.enemySpawnRate > 90) {
+                    config.enemySpawnRate -= 10; // Spawn um pouco mais rápido
+                }
+                config.enemySpeed += 0.2; // Inimigos um pouco mais rápidos
+                
                 updateUI();
             }
         }
@@ -612,13 +600,14 @@
                     gameState.lives = Math.min(5, gameState.lives + 1);
                     break;
                 case 'rapidFire':
-                    player.shootDelay = Math.max(50, player.shootDelay - 50);
+                    const originalDelay = player.shootDelay;
+                    player.shootDelay = 80; // Tiro muito mais rápido
                     setTimeout(() => {
-                        player.shootDelay = 200;
-                    }, 10000);
+                        player.shootDelay = originalDelay;
+                    }, 8000); // 8 segundos de power-up
                     break;
                 case 'shield':
-                    // Implementar escudo temporário
+                    // Efeito visual de escudo pode ser adicionado aqui
                     break;
             }
             updateUI();
@@ -647,7 +636,7 @@
             });
             ctx.globalAlpha = 1;
             
-            // Desenhar player (nave)
+            // Desenhar player
             ctx.fillStyle = player.color;
             ctx.beginPath();
             ctx.moveTo(player.x + player.width / 2, player.y);
@@ -664,10 +653,6 @@
             ctx.fillStyle = '#0f0';
             gameState.bullets.forEach(bullet => {
                 ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
-                // Efeito de rastro
-                ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
-                ctx.fillRect(bullet.x - 1, bullet.y + bullet.height, bullet.width + 2, 5);
-                ctx.fillStyle = '#0f0';
             });
             
             // Desenhar inimigos
@@ -677,7 +662,6 @@
                 ctx.arc(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, enemy.width / 2, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Detalhes do inimigo
                 ctx.fillStyle = '#000';
                 ctx.beginPath();
                 ctx.arc(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, enemy.width / 4, 0, Math.PI * 2);
@@ -691,7 +675,6 @@
                 ctx.arc(powerUp.x + powerUp.width / 2, powerUp.y + powerUp.height / 2, powerUp.width / 2, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Símbolo do power-up
                 ctx.fillStyle = '#000';
                 ctx.font = '16px Arial';
                 ctx.textAlign = 'center';
